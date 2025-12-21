@@ -1,0 +1,47 @@
+
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opensafer"
+version = "1.0.0"
+dependencies = []
+requires-python = ">=3.12"
+authors = [
+  {name = "tikubonn"}
+]
+maintainers = [
+  {name = "tikubonn"}
+]
+description = "Provide some functions to save file more safely."
+readme = "README.md"
+license = "AGPL-3.0"
+license-files = ["LICEN[CS]E"]
+keywords = []
+classifiers = [
+  "Programming Language :: Python"
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest"
+]
+
+[project.urls]
+Homepage = "https://github.com/tikubonn/opensafer"
+Documentation = "https://github.com/tikubonn/opensafer/README.md"
+Repository = "https://github.com/tikubonn/opensafer.git"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = [
+  "opensafer"
+]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-v"
+testpaths = [
+  "test"
+]
