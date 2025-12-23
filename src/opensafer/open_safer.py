@@ -3,70 +3,49 @@ import shutil
 import typing
 import tempfile
 from pathlib import Path
-from .state import State
+from closeable import ICloseable, Closeable
 
-class _OpenSafer:
+class _OpenSafer (ICloseable):
 
   def __init__ (self, path:Path, temp_file, *, make_dir:bool):
     self._path = path
     self._temp_file = temp_file
     self._make_dir = make_dir
-    self._state = State.PENDING
+    self._closeable = Closeable(self._on_close)
+
+  def _on_close (self, succeeded:bool):
+    self._temp_file.close()
+    if succeeded:
+      if self._make_dir:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+      Path(self._temp_file.name).replace(self._path)
+    else:
+      Path(self._temp_file.name).unlink()
+
+  def close (self, succeeded:bool=True):
+    return self._closeable.close(succeeded)
+
+  @property
+  def closed (self) -> bool:
+    return self._closeable.closed
 
   @property
   def path (self) -> Path:
     return self._path
 
   @property
-  def file (self):
+  def temp_file (self):
     return self._temp_file
-
-  @property
-  def closed (self) -> bool:
-    return self._temp_file.closed
 
   @property
   def make_dir (self) -> bool:
     return self._make_dir
 
-  def close (self):
-    self._temp_file.close()
-
-  def rename (self):
-    if self._temp_file.closed:
-      match self._state:
-        case State.PENDING:
-          if self._make_dir:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-          shutil.move(self._temp_file.name, self._path)
-          self._state = State.MOVED
-        case _:
-          raise ValueError()
-    else:
-      raise ValueError()
-
-  def cleanup (self):
-    if self._temp_file.closed:
-      match self._state:
-        case State.PENDING:
-          Path(self._temp_file.name).unlink()
-          self._state = State.CLEANEDUP
-        case _:
-          raise ValueError()
-    else:
-      raise ValueError()
-
   def __enter__ (self):
     return self._temp_file
 
   def __exit__ (self, exc_type, exc_value, traceback):
-    self.close()
-    if (exc_type is None and 
-        exc_value is None and 
-        traceback is None):
-      self.rename()
-    else:
-      self.cleanup()
+    self.close((exc_type is None and exc_value is None and traceback is None))
 
 def open_safer (path:Path|str, mode:str, *, make_dir:bool=False, buffering:int=-1, encoding:str|None=None, errors:str|None=None, newline:str|None=None) -> _OpenSafer|typing.IO:
 

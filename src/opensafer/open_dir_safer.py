@@ -2,53 +2,45 @@
 import shutil
 import tempfile
 from pathlib import Path
-from .state import State
+from closeable import ICloseable, Closeable
 
-class _OpenDirSafer:
+class _OpenDirSafer (ICloseable):
 
   def __init__ (self, path:Path, temp_dir:tempfile.TemporaryDirectory):
     self._path = path
     self._temp_dir = temp_dir
-    self._state = State.PENDING
+    self._closeable = Closeable(self._on_close)
+
+  def _on_close (self, succeeded:bool):
+    if succeeded:
+      try:
+        shutil.rmtree(self._path)
+      except FileNotFoundError:
+        pass
+      shutil.move(self._temp_dir.name, self._path)
+    else:
+      self._temp_dir.cleanup()
+
+  def close (self, succeeded:bool=True):
+    self._closeable.close(succeeded)
+
+  @property
+  def closed (self) -> bool:
+    return self._closeable.closed
 
   @property
   def path (self) -> Path:
     return self._path
 
   @property
-  def dir (self) -> tempfile.TemporaryDirectory:
+  def temp_dir (self) -> tempfile.TemporaryDirectory:
     return self._temp_dir
-
-  def rename (self):
-    match self._state:
-      case State.PENDING:
-        try:
-          shutil.rmtree(self._path)
-        except FileNotFoundError:
-          pass
-        shutil.move(self._temp_dir.name, self._path)
-        self._state = State.MOVED
-      case _:
-        raise ValueError()
-
-  def cleanup (self):
-    match self._state:
-      case State.PENDING:
-        self._temp_dir.cleanup()
-        self._state = State.CLEANEDUP
-      case _:
-        raise ValueError()
 
   def __enter__ (self):
     return Path(self._temp_dir.name)
 
   def __exit__ (self, exc_type, exc_value, traceback):
-    if (exc_type is None and 
-        exc_value is None and 
-        traceback is None):
-      self.rename()
-    else:
-      self.cleanup()
+    self.close((exc_type is None and exc_value is None and traceback is None))
 
 def open_dir_safer (path:Path|str) -> _OpenDirSafer:
 
